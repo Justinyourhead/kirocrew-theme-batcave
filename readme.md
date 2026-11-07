@@ -9,7 +9,8 @@ A fan-made Batman theme pack for Kiro Crew, drawn in a comic-ink style.
 - Batcomputer with six working screens (Gotham map, data feed, radar, waveform, bars, bat logo)
 - Batman in the chair, typing
 - Alfred stepping out of the elevator with coffee every minute or so
-- Bat swarms crossing the cave
+- A rogues gallery on the wall: a spotlight switches on, shows one of eight villain silhouettes, switches off, and the next one appears
+- Bat swarms crossing the cave, and bats roosting on the stalactites
 - Dripping stalactites and a waterfall
 - Batmobile, suit cases, and the giant penny
 
