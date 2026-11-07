@@ -104,6 +104,20 @@
     for (let y = H * 0.1; y < fy; y += sp) for (let x = (y / sp % 2) * sp / 2; x < W; x += sp) { g.moveTo(x + rr, y); g.arc(x, y, rr, 0, 7) }
     g.fill()
 
+    // Far tunnel: a cool opening deep in the back wall, with mist.
+    {
+      const tx = cx - 860 * S, ty = fy - 440 * S
+      const tg = g.createRadialGradient(tx, ty, 10 * S, tx, ty, 260 * S)
+      tg.addColorStop(0, 'rgba(120,190,230,.16)'); tg.addColorStop(0.45, 'rgba(90,150,190,.06)'); tg.addColorStop(1, 'rgba(60,110,150,0)')
+      g.fillStyle = tg; g.fillRect(tx - 300 * S, ty - 300 * S, 600 * S, 640 * S)
+      g.fillStyle = '#0b1a26'; g.beginPath(); g.ellipse(tx, ty + 40 * S, 120 * S, 190 * S, 0, 0, 7); g.fill()
+      g.strokeStyle = INK; g.lineWidth = 2.5 * S; g.stroke()
+      const ig = g.createLinearGradient(0, ty - 150 * S, 0, ty + 230 * S)
+      ig.addColorStop(0, 'rgba(140,200,235,.10)'); ig.addColorStop(1, 'rgba(140,200,235,0)')
+      g.fillStyle = ig; g.beginPath(); g.ellipse(tx, ty + 40 * S, 112 * S, 182 * S, 0, 0, 7); g.fill()
+      g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 3 * S
+      for (let k = 0; k < 5; k++) { g.beginPath(); g.ellipse(tx, ty + 40 * S, (135 + k * 26) * S, (205 + k * 22) * S, 0, Math.PI * (1.05 + k * 0.03), Math.PI * (1.95 - k * 0.03)); g.stroke() }
+    }
     tips = []
     const row = (base, maxL, col, rec) => {
       g.fillStyle = col; g.beginPath(); g.moveTo(0, 0)
@@ -123,6 +137,17 @@
     g.fillStyle = INK; g.fillRect(0, fy - 2 * S, W, 2.5 * S)
     g.fillStyle = rgba(BLUE, 0.2); g.fillRect(0, fy, W, Math.max(1, 1.5 * S))
     for (let i = 1; i < 6; i++) { g.fillStyle = rgba(BLUE, 0.03); g.fillRect(0, fy + i * 9 * S, W, 1) }
+
+    // Floor stalagmites along the back edge (behind the props).
+    g.fillStyle = '#090c11'; g.strokeStyle = INK; g.lineWidth = 2 * S
+    for (const [x0, n] of [[-20 * S, 3], [W - 300 * S, 4]]) {
+      let x = x0
+      for (let i = 0; i < n; i++) {
+        const w = R(30, 70) * S, h = R(50, 140) * S
+        g.beginPath(); g.moveTo(x, fy + 2); g.quadraticCurveTo(x + w * 0.35, fy - h * 0.6, x + w / 2, fy - h); g.quadraticCurveTo(x + w * 0.65, fy - h * 0.6, x + w, fy + 2); g.closePath(); g.fill(); g.stroke()
+        x += w * 0.8
+      }
+    }
 
     g.save(); g.translate(cx, fy); g.scale(S, S)
     const ux = px => (px - cx) / S
@@ -186,6 +211,10 @@
     g.restore()
 
     row(0, 160, '#05070a', true)
+    // Vignette.
+    const vg = g.createRadialGradient(W * 0.55, H * 0.5, H * 0.35, W * 0.55, H * 0.5, W * 0.75)
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)')
+    g.fillStyle = vg; g.fillRect(0, 0, W, H)
   }
 
   // ---------- screens ----------
@@ -278,7 +307,7 @@
     ctx.save(); ctx.globalCompositeOperation = 'lighter'
     const fl = 0.9 + 0.1 * Math.sin(t * 7) * Math.sin(t * 2.3)
     const g = ctx.createRadialGradient(0, -300, 10, 0, -300, 650)
-    g.addColorStop(0, rgba(BLUE, 0.08 * fl)); g.addColorStop(1, rgba(BLUE, 0))
+    g.addColorStop(0, rgba(BLUE, 0.11 * fl)); g.addColorStop(1, rgba(BLUE, 0))
     ctx.fillStyle = g; ctx.fillRect(-700, -900, 1400, 920)
     const f = ctx.createRadialGradient(0, 0, 10, 0, 0, 560)
     f.addColorStop(0, rgba(BLUE, 0.07 * fl)); f.addColorStop(1, rgba(BLUE, 0))
@@ -534,12 +563,71 @@
     if (!alive) { swarm = null; nextSwarm = t + R(22, 45) }
   }
 
+  // ---------- moonlight shaft through a gap in the roof ----------
+  const motes = Array.from({ length: 26 }, () => ({ u: Math.random(), v: Math.random(), sp: R(0.01, 0.03), p: R(0, 7) }))
+  function shaft(dt) {
+    const x0 = W * 0.36, w0 = 60 * S, x1 = W * 0.30, w1 = 260 * S
+    const pulse = 0.9 + 0.1 * Math.sin(t * 0.4)
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'
+    const g = ctx.createLinearGradient(0, 0, 0, fy)
+    g.addColorStop(0, `rgba(150,200,235,${0.10 * pulse})`); g.addColorStop(1, 'rgba(150,200,235,0)')
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 + w0, 0); ctx.lineTo(x1 + w1, fy); ctx.lineTo(x1, fy); ctx.closePath(); ctx.fill()
+    for (const m of motes) {
+      m.v += m.sp * dt; if (m.v > 1) { m.v = 0; m.u = Math.random() }
+      const y = m.v * fy, xl = lerp(x0, x1, m.v), xw = lerp(w0, w1, m.v)
+      ctx.fillStyle = `rgba(200,230,250,${0.35 * (0.5 + 0.5 * Math.sin(t * 1.7 + m.p)) * (1 - m.v * 0.6)})`
+      ctx.fillRect(xl + m.u * xw + Math.sin(t * 0.6 + m.p) * 6 * S, y, 1.8 * S, 1.8 * S)
+    }
+    ctx.restore()
+  }
+  function reflection() {
+    // Faint mirror of the screens in the polished floor.
+    ctx.save()
+    ctx.setTransform(S, 0, 0, -S * 0.22, cx, fy + 2)
+    ctx.globalAlpha = 0.09
+    screens()
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1
+    const fade = ctx.createLinearGradient(0, fy, 0, fy + 120 * S)
+    fade.addColorStop(0, 'rgba(8,10,14,0)'); fade.addColorStop(1, 'rgba(8,10,14,1)')
+    ctx.fillStyle = fade; ctx.fillRect(0, fy, W, 120 * S)
+    ctx.restore()
+  }
+  const roost = Array.from({ length: 6 }, () => ({ k: Math.random(), p: R(0, 7), s: R(5, 8) }))
+  function hangingBats() {
+    if (!tips.length) return
+    for (const b of roost) {
+      const tip = tips[Math.floor(b.k * tips.length)]
+      const sw = Math.sin(t * 1.2 + b.p) * 1.5 * S, s = b.s * S
+      ctx.save(); ctx.translate(tip[0] + sw, tip[1] + 2)
+      ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(-s * 0.3, 0); ctx.lineTo(-s * 0.25, s * 0.5); ctx.moveTo(s * 0.3, 0); ctx.lineTo(s * 0.25, s * 0.5); ctx.stroke()
+      ink('#07080b', () => { ctx.moveTo(-s * 0.5, s * 0.5); ctx.quadraticCurveTo(-s * 0.9, s * 1.6, -s * 0.2, s * 2.6); ctx.lineTo(s * 0.2, s * 2.6); ctx.quadraticCurveTo(s * 0.9, s * 1.6, s * 0.5, s * 0.5) }, 1.4, 0.25)
+      ink('#07080b', () => ctx.arc(0, s * 2.75, s * 0.32, 0, 7), 1.2, 0)
+      if (Math.sin(t * 0.9 + b.p * 3) > 0.985) { ctx.fillStyle = rgba(GOLD, 0.9); ctx.fillRect(-s * 0.2, s * 2.7, s * 0.12, s * 0.1); ctx.fillRect(s * 0.08, s * 2.7, s * 0.12, s * 0.1) }
+      ctx.restore()
+    }
+  }
+  function pool() {
+    const wx = W - 51 * S
+    ctx.save()
+    for (let k = 0; k < 3; k++) {
+      const u = ((t * 0.5) + k / 3) % 1
+      ctx.strokeStyle = `rgba(170,215,240,${0.35 * (1 - u)})`; ctx.lineWidth = 1.2
+      ctx.beginPath(); ctx.ellipse(wx, fy + 3 * S, (14 + u * 90) * S, (3 + u * 14) * S, 0, 0, 7); ctx.stroke()
+    }
+    const mg = ctx.createRadialGradient(wx, fy, 5 * S, wx, fy, 110 * S)
+    mg.addColorStop(0, `rgba(190,225,245,${0.12 + 0.03 * Math.sin(t * 2)})`); mg.addColorStop(1, 'rgba(190,225,245,0)')
+    ctx.fillStyle = mg; ctx.fillRect(wx - 120 * S, fy - 110 * S, 240 * S, 130 * S)
+    ctx.restore()
+  }
+
   // ---------- frame ----------
   function frame(dt) {
     t += dt
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.drawImage(stat, 0, 0)
-    waterfall()
+    shaft(dt); waterfall(); pool(); hangingBats()
+    reflection()
     ctx.setTransform(S, 0, 0, S, cx, fy)
     glow(); screens(); alfred(dt)
     if (mug) drawMug(mug.x, DESK - 16, clamp(1 - (t - mug.born) / 90, 0, 1))
