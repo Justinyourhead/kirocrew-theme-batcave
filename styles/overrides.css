@@ -1,0 +1,41 @@
+/* Batcave: dark stone, Batcomputer blue glow, Bat-Signal gold.
+ * The animated cave scene is overlays/ambient.html (behind layer). */
+
+.topbar {
+  background: var(--chrome);
+  border-bottom: 1px solid var(--accent);
+  box-shadow: 0 2px 18px var(--accent-glow);
+}
+
+.sidebar {
+  background: linear-gradient(180deg, var(--chrome), var(--panel));
+  border-right: 1px solid var(--border-strong);
+}
+
+.message-bubble {
+  border-left: 3px solid var(--info);
+  box-shadow: var(--shadow-sm);
+}
+
+.input-area {
+  background: var(--panel);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -4px 18px rgba(79, 195, 247, 0.08);
+}
+
+.code-block {
+  background: var(--chrome);
+  border: 1px solid var(--border-strong);
+  border-top: 2px solid var(--info);
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 1px solid var(--accent-hover);
+  box-shadow: 0 0 14px var(--accent-glow);
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+}

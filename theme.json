@@ -1,0 +1,20 @@
+{
+  "slug": "batcave",
+  "name": "Batcave",
+  "emoji": "🦇",
+  "level": 2,
+  "formatVersion": 1,
+  "branding": { "botName": "Alfred" },
+  "overlays": [
+    {
+      "id": "ambient",
+      "src": "overlays/ambient.html",
+      "position": "fullscreen",
+      "zIndex": 0,
+      "pointerEvents": false,
+      "layer": "behind",
+      "animation": "continuous",
+      "trigger": "continuous"
+    }
+  ]
+}
