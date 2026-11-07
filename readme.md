@@ -1,6 +1,8 @@
 # Batcave 🦇
 
-A fan-made Batman theme pack for Kiro Crew.
+A fan-made Batman theme pack for Kiro Crew, drawn in a comic-ink style.
+
+![Batcave scene: Alfred brings coffee to Batman at the Batcomputer](branding/preview.png)
 
 **Dark mode** is the Batcave: dark stone walls, Batcomputer blue glow, Bat-Signal gold. A live cave scene plays behind the chat:
 

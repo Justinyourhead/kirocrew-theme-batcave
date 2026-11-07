@@ -13,14 +13,14 @@
 <canvas id="c" aria-hidden="true"></canvas>
 <script>
 /*
- * Batcave ambient scene (fan-made, original art). Mounted on the "behind"
- * layer: paints under the dashboard and is click-through.
- * Scene: cave, stalactites, drips, waterfall, Batcomputer screens (map,
- * data feed, radar, waveform, bars, logo), Batman typing, Alfred bringing
- * coffee from the elevator, parked Batmobile, suit cases, giant penny,
- * and a bat swarm now and then.
+ * Batcave ambient scene (fan-made, original art, comic-ink style).
+ * Mounted on the "behind" layer: paints under the dashboard, click-through.
+ * Scene: cave, stalactites, drips, waterfall, Batcomputer screens, Batman
+ * typing in his chair, Alfred bringing coffee from the elevator, parked
+ * Batmobile, suit cases, giant penny, and a bat swarm now and then.
  * Dark mode only. Reduced motion = one still frame. Pauses when hidden.
- * Open overlays/ambient.html#preview in a browser to see it on its own.
+ * Preview alone: open overlays/ambient.html#preview (add ,t=20 to jump
+ * 20 seconds in, e.g. #preview,t=20).
  */
 (() => {
   'use strict'
@@ -28,26 +28,47 @@
   const ctx = cv.getContext('2d')
   const BAT = new Path2D('M12 8.5L11 6.5L10.4 9C8 8 4.5 8 1 10.5C3.5 10.8 4.6 12 4.8 14C6.2 12.8 8 12.8 9.2 14C10.3 14.6 11.2 16 12 17.5C12.8 16 13.7 14.6 14.8 14C16 12.8 17.8 12.8 19.2 14C19.4 12 20.5 10.8 23 10.5C19.5 8 16 8 13.6 9L13 6.5Z')
   const BLUE = '79,195,247', GOLD = '242,194,48', RED = '255,90,90'
+  const INK = '#000'
   const R = (a, b) => a + Math.random() * (b - a)
   const rgba = (c, a) => `rgba(${c},${a})`
   const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x) }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
+  const smooth = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u) }
+  const lerp = (a, b, u) => a + (b - a) * u
 
   let W = 0, H = 0, S = 1, cx = 0, fy = 0, t = 0
   let stat = null, tips = [], blocks = [], dust = [], drips = [], blips = []
 
-  // Scene units: 1 unit = 1px at 1600x900. Origin = computer center on floor.
-  const DOOR = -560, SERVE = -215
+  // Scene units: 1 unit = 1px at 1600x900. Origin = chair center on floor.
+  const DOOR = -740, SERVE = -235, DESK = -118, CAR = -950, PENNY = -1190
   const SCREENS = {
     main: [-160, -370, 320, 180], left: [-410, -340, 230, 140], right: [180, -340, 230, 140],
     t1: [-250, -480, 150, 85], t2: [-75, -492, 150, 85], t3: [100, -480, 150, 85]
+  }
+
+  // Comic ink: flat fill, black outline, thin cool rim light.
+  function ink(fill, draw, w = 2.6, rim = 0.3) {
+    ctx.beginPath(); draw(); ctx.closePath()
+    ctx.fillStyle = fill; ctx.fill()
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+    ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.stroke()
+    if (rim > 0) { ctx.lineWidth = 1; ctx.strokeStyle = rgba(BLUE, rim); ctx.stroke() }
+  }
+  // Inked thick limb: black outline under a colored core.
+  function limb(color, w, pts) {
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round'
+    for (const [col, lw] of [[INK, w + 4], [color, w]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath()
+      ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1])
+      ctx.stroke()
+    }
   }
 
   function layout() {
     W = cv.width = Math.max(1, innerWidth)
     H = cv.height = Math.max(1, innerHeight)
     S = Math.max(0.45, Math.min(W / 1600, H / 900))
-    cx = W * 0.66; fy = H * 0.93
+    cx = W * 0.68; fy = H * 0.93
     blocks = []; for (let i = 0; i < 55; i++) blocks.push([Math.random(), Math.random(), R(0.03, 0.09), R(0.03, 0.08)])
     blips = []; for (let i = 0; i < 7; i++) blips.push([R(0, Math.PI * 2), R(0.2, 0.9)])
     dust = []; for (let i = 0; i < 40; i++) dust.push({ x: R(-500, 500), y: R(-500, -40), v: R(3, 9), p: R(0, 7) })
@@ -59,12 +80,30 @@
     stat = document.createElement('canvas'); stat.width = W; stat.height = H
     const g = stat.getContext('2d')
     const gr = g.createLinearGradient(0, 0, 0, H)
-    gr.addColorStop(0, '#030405'); gr.addColorStop(0.55, '#0a0d11'); gr.addColorStop(1, '#06080a')
+    gr.addColorStop(0, '#04060a'); gr.addColorStop(0.55, '#0c1119'); gr.addColorStop(1, '#070a0f')
     g.fillStyle = gr; g.fillRect(0, 0, W, H)
-    for (let i = 0; i < 240; i++) {
-      g.fillStyle = `rgba(${R(120, 160) | 0},${R(130, 170) | 0},${R(150, 190) | 0},${R(0.01, 0.03)})`
-      g.beginPath(); g.ellipse(R(0, W), R(0, H * 0.88), R(20, 150) * S, R(10, 70) * S, R(0, 3), 0, 7); g.fill()
+    // Rock strata: wide soft bands, a few cracks.
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = `rgba(${R(110, 150) | 0},${R(130, 170) | 0},${R(160, 200) | 0},${R(0.015, 0.04)})`
+      const y = R(H * 0.08, H * 0.9), h = R(14, 60) * S
+      g.beginPath(); g.moveTo(0, y)
+      for (let x = 0; x <= W; x += 80 * S) g.lineTo(x, y + Math.sin(x * 0.004 + i) * 18 * S)
+      for (let x = W; x >= 0; x -= 80 * S) g.lineTo(x, y + h + Math.sin(x * 0.005 + i * 2) * 14 * S)
+      g.closePath(); g.fill()
     }
+    g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 1.5 * S
+    for (let i = 0; i < 14; i++) {
+      let x = R(0, W), y = R(H * 0.1, H * 0.5)
+      g.beginPath(); g.moveTo(x, y)
+      for (let k = 0; k < 6; k++) { x += R(-25, 25) * S; y += R(20, 60) * S; g.lineTo(x, y) }
+      g.stroke()
+    }
+    // Halftone dots on the back wall (comic print feel).
+    g.fillStyle = rgba(BLUE, 0.045); g.beginPath()
+    const sp = 7 * S, rr = 0.9 * S
+    for (let y = H * 0.1; y < fy; y += sp) for (let x = (y / sp % 2) * sp / 2; x < W; x += sp) { g.moveTo(x + rr, y); g.arc(x, y, rr, 0, 7) }
+    g.fill()
+
     tips = []
     const row = (base, maxL, col, rec) => {
       g.fillStyle = col; g.beginPath(); g.moveTo(0, 0)
@@ -76,66 +115,79 @@
         g.lineTo(x + w, base); x += w
       }
       g.lineTo(W, 0); g.closePath(); g.fill()
+      g.strokeStyle = INK; g.lineWidth = 2 * S; g.stroke()
     }
-    row(H * 0.06, 110, '#0c0f14', false)
-    g.fillStyle = '#07080b'; g.fillRect(0, fy, W, H - fy)
-    g.fillStyle = rgba(BLUE, 0.14); g.fillRect(0, fy, W, Math.max(1, 1.5 * S))
+    row(H * 0.06, 110, '#0e1219', false)
+    // Floor.
+    g.fillStyle = '#080a0e'; g.fillRect(0, fy, W, H - fy)
+    g.fillStyle = INK; g.fillRect(0, fy - 2 * S, W, 2.5 * S)
+    g.fillStyle = rgba(BLUE, 0.2); g.fillRect(0, fy, W, Math.max(1, 1.5 * S))
     for (let i = 1; i < 6; i++) { g.fillStyle = rgba(BLUE, 0.03); g.fillRect(0, fy + i * 9 * S, W, 1) }
 
     g.save(); g.translate(cx, fy); g.scale(S, S)
     const ux = px => (px - cx) / S
+    const gi = (fill, draw, w = 2.6, rim = 0.25) => {
+      g.beginPath(); draw(); g.closePath(); g.fillStyle = fill; g.fill()
+      g.lineJoin = 'round'; g.lineWidth = w; g.strokeStyle = INK; g.stroke()
+      if (rim > 0) { g.lineWidth = 1; g.strokeStyle = rgba(BLUE, rim); g.stroke() }
+    }
 
     // Giant penny.
-    g.save(); g.translate(ux(W * 0.06), 0)
-    g.fillStyle = '#1d150c'; g.beginPath(); g.ellipse(0, -66, 18, 66, 0, 0, 7); g.fill()
-    g.fillStyle = '#2b1f12'; g.beginPath(); g.ellipse(8, -66, 58, 66, 0, 0, 7); g.fill()
-    g.strokeStyle = 'rgba(200,140,70,.18)'; g.lineWidth = 3; g.beginPath(); g.ellipse(8, -66, 48, 56, 0, 0, 7); g.stroke()
+    g.save(); g.translate(PENNY, 0); g.scale(0.8, 0.8)
+    gi('#2a1d10', () => g.ellipse(0, -70, 18, 70, 0, 0, 7))
+    gi('#3a2a17', () => g.ellipse(8, -70, 60, 70, 0, 0, 7))
+    g.strokeStyle = 'rgba(210,150,80,.22)'; g.lineWidth = 3; g.beginPath(); g.ellipse(8, -70, 50, 60, 0, 0, 7); g.stroke()
+    g.fillStyle = 'rgba(210,150,80,.12)'; g.beginPath(); g.ellipse(14, -74, 16, 24, 0, 0, 7); g.fill()
     g.restore()
 
     // Batmobile on turntable.
-    g.save(); g.translate(ux(W * 0.2), 0); g.scale(0.85, 0.85)
-    g.fillStyle = '#0c0f13'; g.beginPath(); g.ellipse(0, -4, 230, 18, 0, 0, 7); g.fill()
-    g.strokeStyle = rgba(BLUE, 0.18); g.lineWidth = 2; g.stroke()
-    g.fillStyle = '#040506'; g.beginPath()
-    g.moveTo(-175, -22); g.lineTo(-185, -52); g.lineTo(-150, -70); g.lineTo(-60, -88); g.lineTo(10, -108)
-    g.lineTo(70, -96); g.lineTo(140, -64); g.lineTo(190, -48); g.lineTo(196, -22); g.closePath(); g.fill()
-    g.strokeStyle = rgba(BLUE, 0.22); g.lineWidth = 1.5; g.stroke()
-    g.fillStyle = '#020203'
-    for (const wx of [-120, 125]) { g.beginPath(); g.arc(wx, -30, 38, 0, 7); g.fill(); g.strokeStyle = rgba(BLUE, 0.15); g.stroke() }
-    g.fillStyle = rgba(RED, 0.35); g.fillRect(-186, -50, 6, 10)
-    g.fillStyle = rgba(BLUE, 0.12); g.beginPath(); g.moveTo(-40, -86); g.lineTo(10, -102); g.lineTo(50, -94); g.lineTo(10, -82); g.fill()
+    g.save(); g.translate(CAR, 0); g.scale(0.62, 0.62)
+    gi('#0f1319', () => g.ellipse(0, -4, 235, 18, 0, 0, 7))
+    gi('#161c26', () => {
+      g.moveTo(-175, -22); g.lineTo(-185, -52); g.lineTo(-150, -70); g.lineTo(-60, -88); g.lineTo(10, -108)
+      g.lineTo(70, -96); g.lineTo(140, -64); g.lineTo(190, -48); g.lineTo(196, -22)
+    }, 3, 0.35)
+    for (const wx of [-120, 125]) gi('#06070a', () => g.arc(wx, -30, 38, 0, 7), 2.6, 0.2)
+    g.fillStyle = '#2a2f38'; for (const wx of [-120, 125]) { g.beginPath(); g.arc(wx, -30, 14, 0, 7); g.fill() }
+    g.fillStyle = rgba(RED, 0.5); g.fillRect(-186, -50, 6, 10)
+    gi('rgba(79,195,247,.14)', () => { g.moveTo(-40, -86); g.lineTo(10, -102); g.lineTo(50, -94); g.lineTo(10, -82) }, 1.5, 0)
+    // Tail fins.
+    gi('#161c26', () => { g.moveTo(140, -64); g.lineTo(165, -112); g.lineTo(178, -60) }, 2.4, 0.3)
     g.restore()
 
     // Suit cases.
-    for (const [x, robin] of [[-440, false], [-340, true]]) {
-      g.fillStyle = 'rgba(79,195,247,.035)'; g.fillRect(x - 38, -250, 76, 240)
-      g.strokeStyle = rgba(BLUE, 0.2); g.lineWidth = 1.5; g.strokeRect(x - 38, -250, 76, 240)
-      g.fillStyle = '#0d1014'; g.fillRect(x - 44, -12, 88, 12); g.fillRect(x - 44, -258, 88, 8)
-      g.fillStyle = '#040506'
-      g.beginPath(); g.ellipse(x, -200, 11, 13, 0, 0, 7); g.fill()
-      if (!robin) { g.beginPath(); g.moveTo(x - 9, -206); g.lineTo(x - 8, -222); g.lineTo(x - 3, -210); g.moveTo(x + 9, -206); g.lineTo(x + 8, -222); g.lineTo(x + 3, -210); g.fill() }
-      g.beginPath(); g.moveTo(x - 26, -184); g.lineTo(x + 26, -184); g.lineTo(x + 20, -110); g.lineTo(x + 14, -24); g.lineTo(x - 14, -24); g.lineTo(x - 20, -110); g.closePath(); g.fill()
-      g.fillStyle = robin ? 'rgba(255,90,90,.25)' : rgba(GOLD, 0.3)
-      g.beginPath(); g.ellipse(x, -160, robin ? 6 : 10, robin ? 6 : 5, 0, 0, 7); g.fill()
+    for (const [x, robin] of [[-620, false], [-540, true]]) {
+      gi('rgba(79,195,247,.05)', () => g.rect(x - 38, -250, 76, 240), 2, 0.3)
+      gi('#11151c', () => g.rect(x - 44, -12, 88, 12), 2, 0); gi('#11151c', () => g.rect(x - 44, -258, 88, 8), 2, 0)
+      const suit = robin ? '#5a1418' : '#1f2a3b'
+      gi(suit, () => { g.moveTo(x - 26, -184); g.lineTo(x + 26, -184); g.lineTo(x + 20, -110); g.lineTo(x + 14, -24); g.lineTo(x - 14, -24); g.lineTo(x - 20, -110) }, 2.2, 0.15)
+      gi(robin ? '#1c4a2a' : '#0a0c11', () => g.ellipse(x, -200, 11, 13, 0, 0, 7), 2.2, 0.15)
+      if (!robin) gi('#0a0c11', () => { g.moveTo(x - 9, -206); g.lineTo(x - 8, -224); g.lineTo(x - 2, -210); g.lineTo(x + 2, -210); g.lineTo(x + 8, -224); g.lineTo(x + 9, -206) }, 2, 0)
+      g.fillStyle = robin ? '#e8c43a' : rgba(GOLD, 0.6)
+      g.beginPath(); g.ellipse(x, -160, robin ? 6 : 12, robin ? 6 : 6, 0, 0, 7); g.fill()
+      if (!robin) { g.fillStyle = '#0a0c11'; g.save(); g.translate(x - 8, -168); g.scale(0.66, 0.66); g.fill(BAT); g.restore() }
+      g.fillStyle = robin ? '#e8c43a' : '#c9a227'; g.fillRect(x - 20, -112, 40, 6)
     }
 
     // Elevator frame.
-    g.fillStyle = '#0e1116'; g.fillRect(DOOR - 60, -292, 120, 292)
+    gi('#12161e', () => g.rect(DOOR - 62, -294, 124, 294), 3, 0.2)
     g.fillStyle = '#050608'; g.fillRect(DOOR - 50, -280, 100, 280)
-    g.fillStyle = rgba(GOLD, 0.25); g.fillRect(DOOR - 6, -290, 12, 4)
+    g.fillStyle = rgba(GOLD, 0.35); g.fillRect(DOOR - 6, -290, 12, 4)
 
     // Computer frame, struts, desk.
-    g.fillStyle = '#0b0e13'; g.beginPath(); g.roundRect(-440, -515, 880, 340, 18); g.fill()
-    g.strokeStyle = rgba(BLUE, 0.1); g.lineWidth = 2; g.stroke()
-    g.fillStyle = '#080a0e'; g.fillRect(-12, -180, 24, 70); g.fillRect(-308, -180, 16, 70); g.fillRect(292, -180, 16, 70)
-    g.fillStyle = '#0d1116'; g.beginPath(); g.moveTo(-480, -118); g.lineTo(480, -118); g.lineTo(450, -134); g.lineTo(-450, -134); g.closePath(); g.fill()
-    g.fillStyle = '#090b0f'; g.fillRect(-480, -118, 960, 22)
-    g.fillStyle = '#06070a'; g.fillRect(-460, -96, 20, 96); g.fillRect(440, -96, 20, 96)
-    g.fillStyle = rgba(BLUE, 0.25); g.fillRect(-470, -118, 940, 1.5)
+    gi('#0d1118', () => g.roundRect(-440, -515, 880, 340, 18), 3.5, 0.2)
+    g.fillStyle = '#0a0d13'; for (const sx of [-300, 0, 300]) gi('#0a0d13', () => g.rect(sx - 10, -180, 20, 70), 2.4, 0)
+    gi('#121820', () => { g.moveTo(-480, DESK); g.lineTo(480, DESK); g.lineTo(450, DESK - 16); g.lineTo(-450, DESK - 16) }, 2.6, 0.3)
+    gi('#0b0e14', () => g.rect(-480, DESK, 960, 22), 2.6, 0)
+    gi('#07090d', () => g.rect(-460, DESK + 22, 20, 96 - 22), 2.4, 0); gi('#07090d', () => g.rect(440, DESK + 22, 20, 96 - 22), 2.4, 0)
+    // Keyboard on the desk.
+    g.fillStyle = '#161b24'; g.fillRect(-60, DESK - 20, 120, 6)
+    g.fillStyle = rgba(BLUE, 0.4); for (let k = -54; k < 56; k += 8) g.fillRect(k, DESK - 18, 5, 2)
     g.restore()
 
-    row(0, 160, '#040506', true)
+    row(0, 160, '#05070a', true)
   }
+
   // ---------- screens ----------
   function box(r, fn) {
     const [x, y, w, h] = r
@@ -145,7 +197,8 @@
     fn(x, y, w, h)
     ctx.fillStyle = rgba(BLUE, 0.05); ctx.fillRect(x, y + ((t * 28) % h), w, 3)
     ctx.restore()
-    ctx.strokeStyle = rgba(BLUE, 0.45); ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h)
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.strokeRect(x, y, w, h)
+    ctx.lineWidth = 1.5; ctx.strokeStyle = rgba(BLUE, 0.5); ctx.strokeRect(x, y, w, h)
   }
   function mapScreen(x, y, w, h) {
     ctx.strokeStyle = rgba(BLUE, 0.1); ctx.lineWidth = 1
@@ -225,16 +278,19 @@
     ctx.save(); ctx.globalCompositeOperation = 'lighter'
     const fl = 0.9 + 0.1 * Math.sin(t * 7) * Math.sin(t * 2.3)
     const g = ctx.createRadialGradient(0, -300, 10, 0, -300, 650)
-    g.addColorStop(0, rgba(BLUE, 0.07 * fl)); g.addColorStop(1, rgba(BLUE, 0))
+    g.addColorStop(0, rgba(BLUE, 0.08 * fl)); g.addColorStop(1, rgba(BLUE, 0))
     ctx.fillStyle = g; ctx.fillRect(-700, -900, 1400, 920)
+    const f = ctx.createRadialGradient(0, 0, 10, 0, 0, 560)
+    f.addColorStop(0, rgba(BLUE, 0.07 * fl)); f.addColorStop(1, rgba(BLUE, 0))
+    ctx.fillStyle = f; ctx.save(); ctx.scale(1, 0.12); ctx.beginPath(); ctx.arc(0, 0, 560, 0, 7); ctx.fill(); ctx.restore()
     ctx.restore()
   }
 
   // ---------- Alfred ----------
-  const A = { st: 'wait', until: 6, x: DOOR, ph: 0, dir: 1, tray: true }
+  const A = { st: 'wait', until: 6, x: DOOR, ph: 0, dir: 1, face: 1, tray: true, put: 0 }
   let doorOpen = 0, mug = null, look = 0
   function steam(x, y, a) {
-    ctx.strokeStyle = `rgba(220,230,240,${a})`; ctx.lineWidth = 1.4
+    ctx.strokeStyle = `rgba(220,230,240,${a})`; ctx.lineWidth = 1.4; ctx.lineCap = 'round'
     for (let k = 0; k < 3; k++) {
       ctx.beginPath()
       for (let i = 0; i <= 28; i += 2) ctx.lineTo(x - 4 + k * 4 + Math.sin(i * 0.25 - t * 3 + k * 2) * 2.5, y - i)
@@ -242,36 +298,71 @@
     }
   }
   function drawMug(x, y, hot) {
-    ctx.fillStyle = 'rgba(205,214,222,.42)'; ctx.fillRect(x - 6, y - 15, 12, 15)
-    ctx.strokeStyle = 'rgba(205,214,222,.42)'; ctx.lineWidth = 2.5
-    ctx.beginPath(); ctx.arc(x + 7, y - 8, 4, -1.4, 1.4); ctx.stroke()
-    if (hot > 0) steam(x, y - 18, 0.22 * hot)
+    ink('#d8dde3', () => ctx.roundRect(x - 7, y - 16, 14, 16, 2), 2, 0)
+    ctx.lineWidth = 4; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(x + 8, y - 8, 4.5, -1.4, 1.4); ctx.stroke()
+    ctx.lineWidth = 2; ctx.strokeStyle = '#d8dde3'; ctx.stroke()
+    ctx.fillStyle = '#0a0c11'; ctx.save(); ctx.translate(x - 4.5, y - 12.5); ctx.scale(0.38, 0.38); ctx.fill(BAT); ctx.restore()
+    if (hot > 0) steam(x, y - 19, 0.25 * hot)
   }
-  function drawAlfred() {
+  function drawTray(hx, hy) {
+    // Tray held level at the hand; coffee pot and mug on it.
+    ink('#aeb6c0', () => ctx.roundRect(hx - 20, hy - 3, 72, 5, 2), 2, 0)
+    drawMug(hx + 2, hy - 3, 1)
+    ink('#aeb6c0', () => { ctx.moveTo(hx + 26, hy - 3); ctx.lineTo(hx + 44, hy - 3); ctx.lineTo(hx + 41, hy - 24); ctx.lineTo(hx + 29, hy - 24) }, 2, 0)
+    ink('#aeb6c0', () => ctx.ellipse(hx + 35, hy - 25, 7, 3, 0, 0, 7), 1.6, 0)
+    ctx.lineWidth = 2.5; ctx.strokeStyle = INK; ctx.beginPath(); ctx.moveTo(hx + 44, hy - 20); ctx.quadraticCurveTo(hx + 54, hy - 16, hx + 44, hy - 8); ctx.stroke()
+  }
+  function drawAlfred(dt) {
+    A.face += (A.dir - A.face) * Math.min(1, dt * 7)
+    const sx = Math.abs(A.face) < 0.15 ? 0.15 * (A.face < 0 ? -1 : 1) : A.face
     const walking = A.st === 'in' || A.st === 'out'
-    const sw = walking ? Math.sin(A.ph) * 14 : 0
-    const bob = walking ? Math.abs(Math.cos(A.ph)) * 2 : 0
-    ctx.save(); ctx.translate(A.x, -bob); ctx.scale(A.dir, 1)
-    const f = '#05070a', rim = rgba(BLUE, 0.35)
-    ctx.strokeStyle = f; ctx.lineCap = 'round'; ctx.lineWidth = 13
-    ctx.beginPath(); ctx.moveTo(0, -108); ctx.lineTo(sw, -4); ctx.moveTo(0, -108); ctx.lineTo(-sw, -4); ctx.stroke()
-    ctx.fillStyle = f; ctx.beginPath()
-    ctx.moveTo(-17, -202); ctx.lineTo(19, -202); ctx.lineTo(22, -112); ctx.lineTo(-6, -112)
-    ctx.lineTo(-24, -68); ctx.lineTo(-30, -72); ctx.lineTo(-24, -125); ctx.closePath(); ctx.fill()
-    ctx.strokeStyle = rim; ctx.lineWidth = 1.2; ctx.stroke()
-    ctx.fillStyle = 'rgba(210,218,226,.30)'; ctx.beginPath(); ctx.moveTo(10, -200); ctx.lineTo(19, -200); ctx.lineTo(15, -168); ctx.fill()
-    ctx.fillStyle = f; ctx.beginPath(); ctx.arc(2, -222, 16, 0, 7); ctx.fill()
-    ctx.beginPath(); ctx.moveTo(16, -226); ctx.lineTo(22, -219); ctx.lineTo(15, -217); ctx.fill()
-    ctx.strokeStyle = rim; ctx.beginPath(); ctx.arc(2, -222, 16, Math.PI * 0.9, Math.PI * 2.1); ctx.stroke()
-    ctx.strokeStyle = 'rgba(160,170,180,.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-1, -222, 14, Math.PI * 0.75, Math.PI * 1.15); ctx.stroke()
-    ctx.strokeStyle = f; ctx.lineWidth = 9; ctx.beginPath()
-    if (A.tray) { ctx.moveTo(6, -192); ctx.lineTo(22, -160); ctx.lineTo(56, -164) }
-    else { ctx.moveTo(4, -192); ctx.lineTo(6 - sw * 0.6, -128) }
-    ctx.stroke()
+    const ph = A.ph
+    const bob = walking ? Math.abs(Math.sin(ph)) * 3 : Math.sin(t * 1.6) * 0.8
+    const coat = '#1e2229', trouser = '#1a1d24', skin = '#e9cdb4', glove = '#eef1f4'
+    ctx.save(); ctx.translate(A.x, -bob); ctx.scale(sx, 1)
+    // Legs: hip (0,-120), knee, foot. Planted foot stays still while body moves.
+    const leg = (phase, far) => {
+      const s = Math.sin(phase), c = Math.cos(phase)
+      const fx = walking ? s * 26 : (far ? -7 : 7)
+      const lift = walking ? Math.max(0, c) * 11 : 0
+      const kx = fx * 0.55 + (walking ? Math.max(0, c) * 8 : 2), ky = -62 - lift * 0.3
+      limb(far ? '#13161c' : trouser, 14, [[0, -120], [kx, ky], [fx, -6 - lift]])
+      ink('#07080b', () => ctx.ellipse(fx + 5, -5 - lift, 11, 5, 0, 0, 7), 2, 0)
+    }
+    leg(ph + Math.PI, true)
+    // Far arm (swings opposite the near leg).
+    const sw = walking ? Math.sin(ph) * 18 : 0
+    limb('#15181e', 9, [[-10, -195], [-12 + sw * 0.4, -160], [-10 + sw, -130]])
+    ink(glove, () => ctx.arc(-10 + sw, -126, 5, 0, 7), 2, 0)
+    leg(ph, false)
+    // Coat tails swing behind.
+    const tail = walking ? Math.sin(ph) * 8 : Math.sin(t * 1.6) * 2
+    ink(coat, () => { ctx.moveTo(-18, -128); ctx.lineTo(16, -128); ctx.lineTo(10 - tail, -70); ctx.lineTo(-24 - tail, -74) }, 2.4, 0.15)
+    // Torso: tailcoat, shirt front, waistcoat, bow tie.
+    ink(coat, () => { ctx.moveTo(-24, -200); ctx.lineTo(24, -200); ctx.lineTo(26, -170); ctx.lineTo(18, -124); ctx.lineTo(-18, -124); ctx.lineTo(-26, -170) }, 2.6, 0.25)
+    ink('#f1f3f5', () => { ctx.moveTo(-8, -198); ctx.lineTo(8, -198); ctx.lineTo(3, -150); ctx.lineTo(-3, -150) }, 1.8, 0)
+    ink('#4b5361', () => { ctx.moveTo(-9, -158); ctx.lineTo(9, -158); ctx.lineTo(6, -128); ctx.lineTo(-6, -128) }, 1.8, 0)
+    ink('#0b0c10', () => { ctx.moveTo(-7, -196); ctx.lineTo(-1, -192); ctx.lineTo(-7, -188); ctx.moveTo(7, -196); ctx.lineTo(1, -192); ctx.lineTo(7, -188) }, 1.6, 0)
+    // Neck and head (profile facing travel direction).
+    ink(skin, () => ctx.rect(-5, -210, 10, 12), 2, 0)
+    ink(skin, () => ctx.ellipse(0, -226, 15, 18, 0, 0, 7), 2.6, 0.2)
+    ink(skin, () => { ctx.moveTo(13, -228); ctx.lineTo(20, -222); ctx.lineTo(13, -218) }, 2, 0) // nose
+    ink('#b9bfc7', () => { ctx.moveTo(-16, -228); ctx.quadraticCurveTo(-14, -248, 4, -245); ctx.quadraticCurveTo(13, -243, 14, -237); ctx.quadraticCurveTo(4, -240, -8, -236); ctx.quadraticCurveTo(-14, -234, -16, -228) }, 2, 0) // grey hair, swept back
+    ink(skin, () => ctx.ellipse(-13, -223, 3, 5, 0, 0, 7), 1.5, 0) // ear
+    ctx.fillStyle = '#aeb4bc'; ctx.fillRect(6, -216, 10, 3) // mustache
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(8, -228, 1.6, 0, 7); ctx.fill() // eye
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(5, -233); ctx.lineTo(12, -234); ctx.stroke() // brow
+    // Near arm: carries the tray, then sets it on the desk.
+    let hx, hy
     if (A.tray) {
-      ctx.strokeStyle = 'rgba(190,170,110,.5)'; ctx.lineWidth = 3
-      ctx.beginPath(); ctx.moveTo(36, -168); ctx.lineTo(96, -168); ctx.stroke()
-      drawMug(70, -169, 1)
+      const p = smooth(A.put)
+      hx = lerp(40, 62, p); hy = lerp(-168, DESK - 6, p)
+      limb(coat, 9, [[14, -194], [lerp(26, 40, p), lerp(-166, -150, p)], [hx, hy]])
+      ink(glove, () => ctx.arc(hx, hy, 5, 0, 7), 2, 0)
+      drawTray(hx, hy - 4)
+    } else {
+      limb(coat, 9, [[14, -194], [16 - sw * 0.4, -160], [12 - sw, -130]])
+      ink(glove, () => ctx.arc(12 - sw, -126, 5, 0, 7), 2, 0)
     }
     ctx.restore()
   }
@@ -279,40 +370,83 @@
     const sp = 72
     switch (A.st) {
       case 'wait': if (t > A.until) A.st = 'open'; break
-      case 'open': doorOpen = Math.min(1, doorOpen + dt * 0.7); if (doorOpen >= 1) { A.st = 'in'; A.dir = 1; A.tray = true; A.x = DOOR } break
-      case 'in': A.x += sp * dt; A.ph += dt * 5.5; if (A.x >= SERVE) { A.x = SERVE; A.st = 'serve'; A.until = t + 5 } break
-      case 'serve': if (A.tray && t > A.until - 3) { A.tray = false; mug = { x: SERVE + 70, born: t } } if (t > A.until) { A.st = 'out'; A.dir = -1 } break
-      case 'out': A.x -= sp * dt; A.ph += dt * 5.5; if (A.x <= DOOR) { A.x = DOOR; A.st = 'close' } break
-      case 'close': doorOpen = Math.max(0, doorOpen - dt * 0.7); if (doorOpen <= 0) { A.st = 'wait'; A.until = t + R(45, 80) } break
+      case 'open': doorOpen = Math.min(1, doorOpen + dt * 0.8); if (doorOpen >= 1) { A.st = 'in'; A.dir = 1; A.face = 1; A.tray = true; A.put = 0; A.x = DOOR } break
+      case 'in': A.x += sp * dt; A.ph += dt * 4.4; if (A.x >= SERVE) { A.x = SERVE; A.st = 'serve'; A.until = t + 6.5 } break
+      case 'serve':
+        if (A.tray) { if (t > A.until - 5) A.put = Math.min(1, A.put + dt * 1.1); if (A.put >= 1) { A.tray = false; mug = { x: SERVE + 64, born: t } } }
+        if (t > A.until) { A.st = 'out'; A.dir = -1 }
+        break
+      case 'out': A.x -= sp * dt; A.ph += dt * 4.4; if (A.x <= DOOR) { A.x = DOOR; A.st = 'close' } break
+      case 'close': doorOpen = Math.max(0, doorOpen - dt * 0.8); if (doorOpen <= 0) { A.st = 'wait'; A.until = t + R(45, 80) } break
     }
-    ctx.fillStyle = rgba(GOLD, 0.16 * doorOpen); ctx.fillRect(DOOR - 50, -280, 100, 280)
-    ctx.fillStyle = '#0c0f13'
-    const pw = 50 * (1 - doorOpen)
-    ctx.fillRect(DOOR - 50, -280, pw, 280); ctx.fillRect(DOOR + 50 - pw, -280, pw, 280)
-    ctx.strokeStyle = rgba(BLUE, 0.12); ctx.lineWidth = 1; ctx.strokeRect(DOOR - 50, -280, 100, 280)
-    if (A.st === 'in' || A.st === 'serve' || A.st === 'out') drawAlfred()
+    const d = smooth(doorOpen)
+    ctx.fillStyle = rgba(GOLD, 0.18 * d); ctx.fillRect(DOOR - 50, -280, 100, 280)
+    const pw = 50 * (1 - d)
+    ink('#0f131a', () => ctx.rect(DOOR - 50, -280, pw, 280), 2.4, 0.15)
+    ink('#0f131a', () => ctx.rect(DOOR + 50 - pw, -280, pw, 280), 2.4, 0.15)
+    if (d > 0) {
+      const g = ctx.createLinearGradient(DOOR, 0, DOOR + 220, 0)
+      g.addColorStop(0, rgba(GOLD, 0.08 * d)); g.addColorStop(1, rgba(GOLD, 0))
+      ctx.fillStyle = g; ctx.fillRect(DOOR + 50, -8, 220, 10)
+    }
+    if (A.st === 'in' || A.st === 'serve' || A.st === 'out') drawAlfred(dt)
   }
 
-  // ---------- Batman ----------
+  // ---------- Batman (seen from behind, cape over the chair) ----------
   function batman(dt) {
-    look += ((A.st === 'serve' ? -1 : 0) - look) * Math.min(1, dt * 3)
-    const typ = Math.sin(t * 14) * 1.3 * (1 + look)
-    const f = '#020304', rim = rgba(BLUE, 0.5)
-    ctx.fillStyle = f
-    ctx.beginPath(); ctx.moveTo(-58, -60); ctx.quadraticCurveTo(-66, -140, -40, -170); ctx.lineTo(40, -170); ctx.quadraticCurveTo(66, -140, 58, -60); ctx.closePath(); ctx.fill()
-    ctx.strokeStyle = rim; ctx.lineWidth = 1.2; ctx.stroke()
-    ctx.beginPath(); ctx.ellipse(-62, -120 + typ, 12, 9, 0, 0, 7); ctx.fill()
-    ctx.beginPath(); ctx.ellipse(62, -120 - typ, 12, 9, 0, 0, 7); ctx.fill()
-    ctx.fillStyle = '#0a0c10'; ctx.beginPath(); ctx.roundRect(-46, -154, 92, 106, 14); ctx.fill()
-    ctx.strokeStyle = rgba(BLUE, 0.25); ctx.stroke()
-    ctx.fillStyle = '#07090c'; ctx.fillRect(-5, -48, 10, 40); ctx.fillRect(-46, -9, 92, 5)
-    for (const wx of [-42, 0, 42]) { ctx.beginPath(); ctx.arc(wx, -3, 3.5, 0, 7); ctx.fill() }
-    const hx = look * 6
-    ctx.fillStyle = f; ctx.beginPath()
-    ctx.ellipse(hx, -181, 14, 17, 0, 0, 7)
-    ctx.moveTo(hx - 12, -188); ctx.lineTo(hx - 10 + look * 2, -210); ctx.lineTo(hx - 4, -194)
-    ctx.moveTo(hx + 12, -188); ctx.lineTo(hx + 10 + look * 2, -210); ctx.lineTo(hx + 4, -194)
-    ctx.fill(); ctx.strokeStyle = rim; ctx.stroke()
+    const want = (A.st === 'serve' || (A.st === 'in' && A.x > SERVE - 90)) ? 1 : 0
+    look += (want - look) * Math.min(1, dt * 2.2)
+    const L = smooth(look)
+    const typ = Math.sin(t * 11) * 2.2 * (1 - L)
+    const sway = Math.sin(t * 0.7) * 3
+    const cape = '#111318', suit = '#273345', cowl = '#0e1016'
+    // Chair base and column.
+    ink('#0b0e14', () => ctx.roundRect(-46, -12, 92, 10, 4), 2.4, 0)
+    for (const wx of [-40, 0, 40]) ink('#15191f', () => ctx.arc(wx, -3, 4, 0, 7), 1.8, 0)
+    ink('#0b0e14', () => ctx.rect(-6, -50, 12, 40), 2.4, 0)
+    ink('#141922', () => ctx.roundRect(-58, -62, 116, 20, 6), 2.4, 0.2) // seat
+    ink('#171c25', () => ctx.roundRect(-52, -150, 104, 92, 12), 2.6, 0.25) // chair back
+    // Arms on the keyboard (drawn before the cape so the cape overlaps shoulders).
+    for (const s of [-1, 1]) {
+      const ty = s * typ
+      limb(suit, 15, [[s * 60, -150], [s * 84, -126 + ty * 0.3], [s * 42, DESK - 6 + ty]])
+      // Gauntlet fins.
+      ctx.fillStyle = cowl; ctx.strokeStyle = INK; ctx.lineWidth = 1.5
+      for (let k = 0; k < 3; k++) {
+        const fx = lerp(s * 84, s * 42, 0.35 + k * 0.18), fy2 = lerp(-126, DESK - 6, 0.35 + k * 0.18) + ty * 0.6
+        ctx.beginPath(); ctx.moveTo(fx, fy2 - 6); ctx.lineTo(fx - s * 7, fy2 - 16); ctx.lineTo(fx - s * 4, fy2 - 5); ctx.closePath(); ctx.fill(); ctx.stroke()
+      }
+      ink(cowl, () => ctx.ellipse(s * 40, DESK - 8 + ty, 9, 6, 0, 0, 7), 2, 0) // glove
+    }
+    // Cape draped over the chair back, scalloped hem.
+    ink(cape, () => {
+      ctx.moveTo(-66, -160); ctx.quadraticCurveTo(-72, -120, -62 + sway, -56)
+      for (let i = -2; i <= 2; i++) {
+        const x = i * 30 + sway * (i / 2), y = -56 + (i % 2 ? 0 : 12) + Math.sin(t * 0.7 + i) * 1.5
+        if (i === -2) ctx.lineTo(x, y); else ctx.quadraticCurveTo(x - 15, y + (i % 2 ? 9 : -3), x, y)
+      }
+      ctx.lineTo(62 + sway, -56); ctx.quadraticCurveTo(72, -120, 66, -160); ctx.quadraticCurveTo(0, -176, -66, -160)
+    }, 3, 0.35)
+    // Cape folds.
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 2
+    for (const fx of [-30, 0, 30]) { ctx.beginPath(); ctx.moveTo(fx * 0.5, -162); ctx.quadraticCurveTo(fx * 0.9, -110, fx + sway * 0.5, -62); ctx.stroke() }
+    // Shoulders in suit color above the cape line.
+    ink(suit, () => { ctx.moveTo(-74, -154); ctx.quadraticCurveTo(-56, -176, -18, -174); ctx.lineTo(18, -174); ctx.quadraticCurveTo(56, -176, 74, -154); ctx.quadraticCurveTo(0, -160, -74, -154) }, 2.4, 0.3)
+    // Neck, cowl, ears. Head turns left toward Alfred.
+    const hx = -7 * L
+    ink(cowl, () => ctx.rect(hx - 7, -182, 14, 14), 2, 0)
+    ink(cowl, () => {
+      ctx.ellipse(hx, -196, 16 + L * 2, 19, 0, 0, 7)
+    }, 2.6, 0.35)
+    ink(cowl, () => { ctx.moveTo(hx - 13, -205); ctx.lineTo(hx - 12 - L * 3, -232); ctx.lineTo(hx - 3, -212) }, 2.4, 0.3)
+    ink(cowl, () => { ctx.moveTo(hx + 13, -205); ctx.lineTo(hx + 12 - L * 3, -232); ctx.lineTo(hx + 3, -212) }, 2.4, 0.3)
+    if (L > 0.05) {
+      // Jaw and a white eye slit show as he turns.
+      ctx.globalAlpha = L
+      ink('#e2c3a6', () => { ctx.moveTo(hx - 16, -192); ctx.quadraticCurveTo(hx - 24, -184, hx - 14, -178); ctx.lineTo(hx - 6, -180) }, 2, 0)
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(hx - 16, -198, 4, 1.6, -0.25, 0, 7); ctx.fill()
+      ctx.globalAlpha = 1
+    }
   }
 
   // ---------- particles, drips, waterfall ----------
@@ -331,8 +465,8 @@
       const d = drips[i]
       if (d.sp === 0) {
         d.vy += 900 * S * dt; d.y += d.vy * dt
-        ctx.strokeStyle = rgba(BLUE, 0.35); ctx.lineWidth = 1.2
-        ctx.beginPath(); ctx.moveTo(d.x, d.y - 6 * S); ctx.lineTo(d.x, d.y); ctx.stroke()
+        ctx.strokeStyle = rgba(BLUE, 0.45); ctx.lineWidth = 1.5 * S; ctx.lineCap = 'round'
+        ctx.beginPath(); ctx.moveTo(d.x, d.y - 7 * S); ctx.lineTo(d.x, d.y); ctx.stroke()
         if (d.y >= fy) { d.y = fy; d.sp = 0.001 }
       } else {
         d.sp += dt
@@ -347,7 +481,7 @@
     const wx = W - 70 * S, top = H * 0.1, w = 38 * S
     ctx.save(); ctx.lineWidth = Math.max(1, 1.5 * S)
     FALL.forEach(([a, b, sp], i) => {
-      ctx.strokeStyle = `rgba(170,215,240,${0.06 + (i % 3) * 0.025})`
+      ctx.strokeStyle = `rgba(170,215,240,${0.07 + (i % 3) * 0.03})`
       ctx.setLineDash([a * S, b * S]); ctx.lineDashOffset = -t * sp * S * 2
       const x = wx + (i / FALL.length) * w + Math.sin(t * 2 + i) * S
       ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, fy); ctx.stroke()
@@ -359,22 +493,30 @@
   let swarm = null, nextSwarm = 4
   function drawBat(x, y, s, fl) {
     const wy = fl * s * 0.9
-    ctx.beginPath(); ctx.moveTo(x, y)
-    ctx.quadraticCurveTo(x - s * 0.9, y - wy - s * 0.2, x - s * 2, y - wy)
-    ctx.quadraticCurveTo(x - s * 1.2, y - wy * 0.3 + s * 0.3, x, y + s * 0.35)
-    ctx.quadraticCurveTo(x + s * 1.2, y - wy * 0.3 + s * 0.3, x + s * 2, y - wy)
-    ctx.quadraticCurveTo(x + s * 0.9, y - wy - s * 0.2, x, y)
-    ctx.fill(); ctx.stroke()
+    ctx.save(); ctx.translate(x, y)
+    ctx.beginPath()
+    for (const d of [-1, 1]) {
+      ctx.moveTo(0, 0)
+      ctx.quadraticCurveTo(d * s * 0.9, -wy - s * 0.3, d * s * 2.1, -wy)
+      ctx.quadraticCurveTo(d * s * 1.7, -wy + s * 0.5, d * s * 1.35, -wy * 0.5 + s * 0.15)
+      ctx.quadraticCurveTo(d * s * 1.0, s * 0.55, d * s * 0.65, s * 0.3)
+      ctx.quadraticCurveTo(d * s * 0.3, s * 0.65, 0, s * 0.45)
+    }
+    ctx.fillStyle = '#07080b'; ctx.fill()
+    ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke()
+    ctx.lineWidth = 0.8; ctx.strokeStyle = rgba(BLUE, 0.35); ctx.stroke()
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.32, s * 0.5, 0, 0, 7); ctx.fillStyle = '#07080b'; ctx.fill(); ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(-s * 0.3, -s * 0.4); ctx.lineTo(-s * 0.32, -s * 0.85); ctx.lineTo(-s * 0.08, -s * 0.5); ctx.moveTo(s * 0.3, -s * 0.4); ctx.lineTo(s * 0.32, -s * 0.85); ctx.lineTo(s * 0.08, -s * 0.5); ctx.fill(); ctx.stroke()
+    ctx.restore()
   }
   function bats() {
     if (!swarm && t > nextSwarm) {
       const b = []
-      for (let i = 0; i < 38; i++) b.push({ d: R(0, 2.4), ox: R(-1, 1), oy: R(-1, 1), f: R(10, 16), p: R(0, 7), s: R(4, 9), w: R(0.5, 1.5) })
+      for (let i = 0; i < 38; i++) b.push({ d: R(0, 2.4), ox: R(-1, 1), oy: R(-1, 1), f: R(10, 16), p: R(0, 7), s: R(5, 11), w: R(0.5, 1.5) })
       const left = Math.random() < 0.5
       swarm = { t0: t, dur: R(6, 8.5), b, P: left ? [[W * 0.08, H * 0.1], [W * 0.45, H * 0.8], [W * 1.1, H * 0.05]] : [[W * 0.92, H * 0.1], [W * 0.5, H * 0.75], [-W * 0.1, H * 0.12]] }
     }
     if (!swarm) return
-    ctx.fillStyle = '#000'; ctx.strokeStyle = rgba(BLUE, 0.3); ctx.lineWidth = 1
     let alive = false
     for (const b of swarm.b) {
       const u = (t - swarm.t0 - b.d) / swarm.dur
@@ -400,14 +542,15 @@
     waterfall()
     ctx.setTransform(S, 0, 0, S, cx, fy)
     glow(); screens(); alfred(dt)
-    if (mug) drawMug(mug.x, -120, clamp(1 - (t - mug.born) / 90, 0, 1))
+    if (mug) drawMug(mug.x, DESK - 16, clamp(1 - (t - mug.born) / 90, 0, 1))
     batman(dt); dustDraw(dt)
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     dripsDraw(dt); bats()
   }
 
   // ---------- host state ----------
-  let mode = location.hash === '#preview' ? 'dark' : null
+  const preview = /preview/.test(location.hash)
+  let mode = preview ? 'dark' : null
   let hostReduced = false, running = false, raf = 0, last = 0, acc = 0
   const osR = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null
   const reduced = () => hostReduced || (osR && osR.matches)
@@ -427,7 +570,7 @@
     cv.classList.add('on')
     if (reduced()) {
       running = false; cancelAnimationFrame(raf)
-      if (!mug) mug = { x: SERVE + 70, born: -1e9 }
+      if (!mug) mug = { x: SERVE + 64, born: -1e9 }
       frame(0); return
     }
     if (!running) { running = true; last = performance.now(); raf = requestAnimationFrame(loop) }
@@ -443,7 +586,16 @@
   document.addEventListener('visibilitychange', update)
   if (osR && osR.addEventListener) osR.addEventListener('change', update)
   window.addEventListener('resize', () => { layout(); if (reduced()) update() })
-  layout(); update()
+  layout()
+  if (preview) {
+    // Stand-alone preview: solid page, no fade-in, and jump ahead so the
+    // scene shows mid-action.
+    document.body.style.background = '#0a0c0f'
+    cv.style.transition = 'none'
+    const m = /t=(\d+)/.exec(location.hash); const jump = m ? +m[1] : 0
+    for (let i = 0; i < jump * 30; i++) frame(1 / 30)
+  }
+  update()
 })()
 </script>
 </body>
